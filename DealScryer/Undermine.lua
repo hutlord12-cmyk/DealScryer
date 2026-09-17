@@ -55,6 +55,9 @@ function U:RecordHistorySnapshot(itemID, data)
     local now = time()
     local last = samples[#samples]
 
+    -- Keep enough points for a readable 4-day sparkline without growing
+    -- SavedVariables aggressively. If the value changes, record immediately;
+    -- otherwise one point per hour is enough.
     local changed = not last
         or tonumber(last.realm) ~= realm
         or tonumber(last.region) ~= region
