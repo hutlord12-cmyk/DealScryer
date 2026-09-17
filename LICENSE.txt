@@ -1,0 +1,16 @@
+DealScryer — All Rights Reserved
+
+Copyright (c) 2026 Burn — DealScryer.
+
+All rights reserved. Redistribution of unmodified releases through the official
+project distribution pages is permitted by those platforms' normal download
+mechanisms. No permission is granted to sell, repackage, claim authorship of,
+or redistribute modified versions of DealScryer without permission from the
+project owner.
+
+World of Warcraft and related marks are trademarks of Blizzard Entertainment.
+DealScryer is an independent community addon and is not affiliated with,
+endorsed by, or sponsored by Blizzard Entertainment.
+
+The software is provided as-is, without any guarantee of accuracy, profit, or
+fitness for a particular purpose.
