@@ -1,0 +1,61 @@
+name: Import DealScryer source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/import-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Find CurseForge file
+        id: curseforge
+        shell: bash
+        run: |
+          set -euo pipefail
+          API='https://www.curseforge.com/api/v1/mods/1699116/files?pageSize=50&sort=dateCreated&sortDescending=true'
+          JSON="$(curl -fsSL "$API")"
+          FILE_ID="$(printf '%s' "$JSON" | jq -r '[.data[] | select(.fileName == "DealScryer-3.1.2.zip")][0].id // empty')"
+          if [ -z "$FILE_ID" ]; then
+            echo 'Could not find DealScryer-3.1.2.zip on CurseForge.' >&2
+            exit 1
+          fi
+          echo "file_id=$FILE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download and extract source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf DealScryer .source-import
+          mkdir -p .source-import
+          curl -fsSL -o .source-import/DealScryer-3.1.2.zip \
+            "https://www.curseforge.com/api/v1/mods/1699116/files/${{ steps.curseforge.outputs.file_id }}/download"
+          unzip -q .source-import/DealScryer-3.1.2.zip -d .source-import/extracted
+          test -d .source-import/extracted/DealScryer
+          mv .source-import/extracted/DealScryer ./DealScryer
+          rm -rf .source-import
+
+          # 3.1.2's Core.lua already reports 3.1.2. Keep repository metadata aligned too.
+          sed -i 's/^## Version: 3\.1\.1$/## Version: 3.1.2/' DealScryer/DealScryer.toc
+
+      - name: Commit imported source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'DealScryer Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add DealScryer
+          if git diff --cached --quiet; then
+            echo 'Source is already up to date.'
+            exit 0
+          fi
+          git commit -m 'Import DealScryer 3.1.2 source from CurseForge'
+          git push
