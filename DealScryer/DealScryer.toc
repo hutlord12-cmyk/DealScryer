@@ -1,0 +1,17 @@
+## Interface: 120100, 120105
+## Title: DealScryer
+## Notes: Standalone, region-aware Auction House scanner and flipping assistant.
+## Author: Burn
+## Version: 3.1.2
+## SavedVariables: DealScryerDB
+## OptionalDeps: OribosExchange
+## AddonCompartmentFunc: DealScryer_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: DealScryer_OnAddonCompartmentEnter
+## IconTexture: Interface\Icons\INV_Misc_Coin_01
+
+Core.lua
+Locale.lua
+Undermine.lua
+Scanner.lua
+UI.lua
+Tooltip.lua
