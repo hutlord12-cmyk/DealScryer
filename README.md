@@ -3,6 +3,8 @@
 **World of Warcraft Retail Auction House scanner**  
 Created by **Burn**
 
+> **DealScryer 3.1.2 is live.** Read the [launch announcement](ANNOUNCEMENT.md) or leave feedback in the [public feedback thread](https://github.com/hutlord12-cmyk/DealScryer/issues/1).
+
 DealScryer helps players spot potential Auction House flips by analyzing live Blizzard Auction House snapshot data, estimating profit and ROI, ranking opportunities, and warning about suspicious or unreliable markets.
 
 ## Download
