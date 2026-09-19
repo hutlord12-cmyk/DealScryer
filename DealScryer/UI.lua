@@ -2199,7 +2199,10 @@ function UI:RefreshDetail()
     elseif FS.Undermine and FS.Undermine.IsAvailable and FS.Undermine:IsAvailable() then
         self.undermineText:SetText(L("UNDERMINE_NO_ITEM_DATA"))
     else
-        self.undermineText:SetText(L("UNDERMINE_NOT_INSTALLED_SHORT"))
+        local unavailable = FS.Undermine and FS.Undermine.GetUnavailableText
+            and FS.Undermine:GetUnavailableText()
+            or L("UNDERMINE_NOT_INSTALLED_SHORT")
+        self.undermineText:SetText(unavailable)
     end
 
     if r.suspiciousMarket then
@@ -2235,7 +2238,10 @@ function UI:DrawUndermineHistory()
     end
 
     if not FS.Undermine or not FS.Undermine.IsAvailable or not FS.Undermine:IsAvailable() then
-        g.empty:SetText(L("UNDERMINE_NOT_INSTALLED_SHORT"))
+        local unavailable = FS.Undermine and FS.Undermine.GetUnavailableText
+            and FS.Undermine:GetUnavailableText()
+            or L("UNDERMINE_NOT_INSTALLED_SHORT")
+        g.empty:SetText(unavailable)
         g.empty:Show()
         g.meta:SetText("")
         return
@@ -2506,7 +2512,7 @@ function UI:LoadSettings()
             self.undermineStatus:SetTextColor(C.green[1], C.green[2], C.green[3], 1)
         else
             self.undermineStatus:SetText(
-                L("UNDERMINE_MISSING")
+                tostring(label or L("UNDERMINE_MISSING"))
                     .. "\n" .. L("UNDERMINE_NO_SALES")
             )
             self.undermineStatus:SetTextColor(C.orange[1], C.orange[2], C.orange[3], 1)
@@ -3044,16 +3050,16 @@ function UI:OnAuctionHouseShow()
         self.ahButton = b
     end
 
-    -- Blizzard's current Retail Auction House exposes BuyTab, SellTab and
-    -- AuctionsTab along the bottom. Put DealScryer directly after AuctionsTab
-    -- so it behaves like a fourth utility button in the same row.
+    -- Keep DealScryer's launcher independent from Blizzard/Auctionator bottom
+    -- tabs. Several Auction House addons replace or move those tabs, which made
+    -- the old anchor drift into the content area. The top-right title bar is a
+    -- stable, low-conflict location and stays visually aligned with the close button.
     self.ahButton:ClearAllPoints()
-    if AuctionHouseFrame.AuctionsTab then
-        self.ahButton:SetPoint("LEFT", AuctionHouseFrame.AuctionsTab, "RIGHT", 7, 0)
-    elseif AuctionHouseFrame.SellTab then
-        self.ahButton:SetPoint("LEFT", AuctionHouseFrame.SellTab, "RIGHT", 70, 0)
+    local closeButton = AuctionHouseFrame.CloseButton or _G.AuctionHouseFrameCloseButton
+    if closeButton and closeButton.GetObjectType then
+        self.ahButton:SetPoint("RIGHT", closeButton, "LEFT", -7, 0)
     else
-        self.ahButton:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "BOTTOMLEFT", 325, -28)
+        self.ahButton:SetPoint("TOPRIGHT", AuctionHouseFrame, "TOPRIGHT", -43, -8)
     end
 
     self.ahButton:Show()
