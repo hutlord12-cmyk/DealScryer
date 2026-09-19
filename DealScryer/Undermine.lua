@@ -21,12 +21,97 @@ function U:GetAddonVersion()
     return nil
 end
 
-function U:GetStatus()
-    if self:IsAvailable() then
-        local version = self:GetAddonVersion()
-        return true, version and ("Oribos Exchange " .. version) or "Oribos Exchange"
+function U:GetAddonState()
+    local state = {
+        exists = false,
+        loaded = false,
+        loadable = false,
+        reason = nil,
+        version = self:GetAddonVersion(),
+        available = self:IsAvailable(),
+    }
+
+    if not C_AddOns then
+        return state
     end
-    return false, "Oribos Exchange not installed"
+
+    if C_AddOns.DoesAddOnExist then
+        local ok, exists = pcall(C_AddOns.DoesAddOnExist, "OribosExchange")
+        if ok then state.exists = exists == true end
+    end
+
+    if C_AddOns.GetAddOnInfo then
+        local ok, name, _, _, loadable, reason = pcall(C_AddOns.GetAddOnInfo, "OribosExchange")
+        if ok and name then
+            state.exists = true
+            state.loadable = loadable == true
+            state.reason = reason
+        end
+    end
+
+    if C_AddOns.IsAddOnLoaded then
+        local ok, loadedOrLoading, loaded = pcall(C_AddOns.IsAddOnLoaded, "OribosExchange")
+        if ok then
+            state.loaded = loaded == true or loadedOrLoading == true
+        end
+    end
+
+    if state.available then
+        state.exists = true
+        state.loaded = true
+        state.loadable = true
+        state.reason = nil
+    end
+
+    return state
+end
+
+local function FriendlyReason(reason)
+    reason = tostring(reason or "")
+    if reason == "INCOMPATIBLE" or reason == "WRONG_GAME_TYPE"
+        or reason == "WRONG_ACTIVE_INTERFACE" or reason == "NO_ACTIVE_INTERFACE" then
+        return "incompatible with this WoW client"
+    elseif reason == "INTERFACE_VERSION" then
+        return "out of date for this WoW client"
+    elseif reason == "DISABLED" then
+        return "disabled"
+    elseif reason == "DEP_DISABLED" then
+        return "blocked by a disabled dependency"
+    elseif reason == "DEP_INCOMPATIBLE" or reason == "DEP_INTERFACE_VERSION" then
+        return "blocked by an incompatible dependency"
+    elseif reason ~= "" and reason ~= "nil" then
+        return string.lower(reason:gsub("_", " "))
+    end
+    return nil
+end
+
+function U:GetStatus()
+    local version = self:GetAddonVersion()
+    local base = version and ("Oribos Exchange " .. version) or "Oribos Exchange"
+
+    if self:IsAvailable() then
+        return true, base, self:GetAddonState()
+    end
+
+    local state = self:GetAddonState()
+    if state.exists then
+        local reason = FriendlyReason(state.reason)
+        if state.loaded then
+            return false, base .. " is loaded, but OEMarketInfo is unavailable", state
+        elseif reason then
+            return false, base .. " is installed but " .. reason, state
+        else
+            return false, base .. " is installed but not loaded", state
+        end
+    end
+
+    return false, "Oribos Exchange is not installed", state
+end
+
+function U:GetUnavailableText()
+    local connected, label = self:GetStatus()
+    if connected then return nil end
+    return "Undermine Exchange • " .. tostring(label or "Oribos Exchange unavailable")
 end
 
 function U:ClearCache()
