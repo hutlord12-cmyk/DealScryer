@@ -2,7 +2,7 @@
 ## Title: DealScryer
 ## Notes: Standalone, region-aware Auction House scanner and flipping assistant.
 ## Author: Burn
-## Version: 3.1.3
+## Version: 3.1.4
 ## SavedVariables: DealScryerDB
 ## OptionalDeps: OribosExchange
 ## AddonCompartmentFunc: DealScryer_OnAddonCompartmentClick
