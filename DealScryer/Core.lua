@@ -4,7 +4,7 @@ local FS = _G.DealScryer or {}
 _G.DealScryer = FS
 
 FS.ADDON_NAME = ADDON_NAME
-FS.VERSION = "3.1.3"
+FS.VERSION = "3.1.4"
 FS.CREATOR = "Burn"
 FS.GOLD = 10000
 FS.SILVER = 100
