@@ -3,7 +3,7 @@
 **World of Warcraft Retail Auction House scanner**  
 Created by **Burn**
 
-> **DealScryer 3.1.2 is live.** Read the [launch announcement](ANNOUNCEMENT.md) or leave feedback in the [public feedback thread](https://github.com/hutlord12-cmyk/DealScryer/issues/1).
+> **DealScryer 3.1.3 is live.** Read the [launch announcement](ANNOUNCEMENT.md) or leave feedback in the [public feedback thread](https://github.com/hutlord12-cmyk/DealScryer/issues/1).
 
 DealScryer helps players spot potential Auction House flips by analyzing live Blizzard Auction House snapshot data, estimating profit and ROI, ranking opportunities, and warning about suspicious or unreliable markets.
 
@@ -11,7 +11,7 @@ DealScryer helps players spot potential Auction House flips by analyzing live Bl
 
 **CurseForge:** https://www.curseforge.com/wow/addons/dealscryer
 
-Current public version: **3.1.2**
+Current public version: **3.1.3**
 
 ## Features
 
@@ -29,6 +29,7 @@ Current public version: **3.1.2**
 - Undermine Exchange integration through **Oribos Exchange**
 - Realm / region market values inside DealScryer
 - Compact **4-day Oribos Exchange trend graph**
+- Persistent patch diagnostics for WoW build/interface/API and last-scan troubleshooting via `/fs diag`
 
 ## Scoring
 
