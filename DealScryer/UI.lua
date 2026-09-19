@@ -246,6 +246,8 @@ local function Button(parent, value, width, primary, danger)
     return b
 end
 
+UI.MakeButton = Button
+
 local function Tab(parent, value, width)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(width or 96, 30)
@@ -353,7 +355,13 @@ local function Graph(parent, titleText)
     g.plot:SetPoint("BOTTOMRIGHT", -11, 10)
 
     g.empty = Text(g.plot, L("NO_DATA_YET"), "GameFontHighlightSmall", C.faint)
-    g.empty:SetPoint("CENTER")
+    g.empty:SetPoint("TOPLEFT", g.plot, "TOPLEFT", 4, -2)
+    g.empty:SetPoint("BOTTOMRIGHT", g.plot, "BOTTOMRIGHT", -4, 2)
+    g.empty:SetJustifyH("CENTER")
+    g.empty:SetJustifyV("MIDDLE")
+    g.empty:SetWordWrap(true)
+    if g.empty.SetNonSpaceWrap then g.empty:SetNonSpaceWrap(true) end
+    g:SetClipsChildren(true)
 
     g.bars = {}
     g.labels = {}
@@ -938,12 +946,14 @@ function UI:UpdateSearchOptionsBadge()
         "minItemLevel",
         "maxItemLevel",
         "minQuantity",
+        "minROIPct",
     }) do
         if (tonumber(opt[key]) or 0) > 0 then active = active + 1 end
     end
 
     if (tonumber(opt.minQuality) or -1) >= 0 then active = active + 1 end
     if (tonumber(opt.classID) or -1) >= 0 then active = active + 1 end
+    if opt.riskMode and opt.riskMode ~= "all" then active = active + 1 end
     if opt.onlyUsable then active = active + 1 end
     if opt.equipmentOnly then active = active + 1 end
 
@@ -1134,7 +1144,7 @@ function UI:CreateResultsArea()
     self.oeGraph = Graph(self.detailPanel, L("UNDERMINE_GRAPH_TITLE"))
     self.depthGraph = Graph(self.detailPanel, L("MARKET_LADDER"))
 
-    self.riskTitle = Text(self.detailPanel, L("CONFIDENCE"), "GameFontHighlightSmall", C.muted)
+    self.riskTitle = Text(self.detailPanel, "EVIDENCE & RISK", "GameFontHighlightSmall", C.muted)
     self.riskText = Text(self.detailPanel, "—", "GameFontHighlightSmall", C.orange)
     self.riskText:SetWordWrap(true)
     self.sourceText = Text(self.detailPanel, "—", "GameFontHighlightSmall", C.faint)
@@ -1142,7 +1152,7 @@ function UI:CreateResultsArea()
 
     self.undermineText = Text(self.detailPanel, "", "GameFontHighlightSmall", C.blue)
     self.undermineText:SetWordWrap(true)
-    self.undermineText:SetJustifyH("LEFT")
+    self.undermineText:SetJustifyH("CENTER")
 
     self.outlierWarning = Text(
         self.detailPanel,
@@ -1597,14 +1607,20 @@ function UI:Layout()
     local usableW = math.max(600, self.tablePanel:GetWidth() - 40)
     local x = 0
 
+    local compact = not FS.DB.settings.advancedColumns
+    local ratios = {name=0.46, buy=0.15, profit=0.17, roi=0.11, score=0.11, sell=0, discount=0}
     for _, col in ipairs(self.columns) do
-        local w = math.floor(usableW * col.ratio)
+        local ratio = compact and ratios[col.key] or col.ratio
+        col.hidden = ratio == 0
+        self.headerButtons[col.key]:SetShown(not col.hidden)
+        local w = math.floor(usableW * ratio)
         local hb = self.headerButtons[col.key]
 
         hb:ClearAllPoints()
         hb:SetPoint("TOPLEFT", self.tableHeader, "TOPLEFT", x + 8, 0)
         hb:SetSize(w - 4, 28)
-        hb.label:SetWidth(w - 8)
+        hb.label:SetWidth(math.max(1, w - 8))
+        hb.label:SetJustifyH(col.key == "name" and "LEFT" or "RIGHT")
 
         col._x = x
         col._w = w
@@ -1641,6 +1657,8 @@ function UI:Layout()
 
             cell:SetPoint("LEFT", cx, 0)
             cell:SetWidth(math.max(20, cw))
+            cell:SetShown(not col.hidden)
+            cell:SetJustifyH(col.key == "name" and "LEFT" or "RIGHT")
         end
     end
 
@@ -1679,9 +1697,9 @@ function UI:Layout()
     end
 
     local detailH = self.detailPanel:GetHeight()
-    local oeGraphH = 96
-    local graphSpace = math.max(220, detailH - 230 - oeGraphH - 18)
-    local graphH = math.max(92, math.floor((graphSpace - 10) / 2))
+    local oeAvailable = FS.Undermine and FS.Undermine:IsAvailable()
+    local oeGraphH = oeAvailable and 96 or 72
+    local graphH = math.max(55, math.floor((detailH - 134 - oeGraphH - 27 - 165) / 2))
 
     self.priceGraph:ClearAllPoints()
     self.priceGraph:SetPoint("TOPLEFT", self.detailPanel, "TOPLEFT", 12, -134)
@@ -1704,18 +1722,24 @@ function UI:Layout()
     self.riskText:ClearAllPoints()
     self.riskText:SetPoint("TOPLEFT", self.riskTitle, "BOTTOMLEFT", 0, -4)
     self.riskText:SetWidth(rightW - 24)
+    self.riskText:SetMaxLines(2)
+    self.riskText:SetJustifyH("LEFT")
 
     self.sourceText:ClearAllPoints()
     self.sourceText:SetPoint("TOPLEFT", self.riskText, "BOTTOMLEFT", 0, -5)
     self.sourceText:SetWidth(rightW - 24)
+    self.sourceText:SetMaxLines(1)
+    self.sourceText:SetJustifyH("LEFT")
 
     self.undermineText:ClearAllPoints()
     self.undermineText:SetPoint("TOPLEFT", self.sourceText, "BOTTOMLEFT", 0, -5)
     self.undermineText:SetWidth(rightW - 24)
+    self.undermineText:SetMaxLines(3)
 
     self.outlierWarning:ClearAllPoints()
     self.outlierWarning:SetPoint("TOPLEFT", self.undermineText, "BOTTOMLEFT", 0, -5)
     self.outlierWarning:SetWidth(rightW - 24)
+    self.outlierWarning:SetMaxLines(2)
 
     self.settingsPage:ClearAllPoints()
     self.settingsPage:SetPoint("TOPLEFT", f, "TOPLEFT", 17, -112)
@@ -1816,7 +1840,7 @@ end
 
 local function MaxProfit(list)
     local v = 0
-    for _, r in ipairs(list or {}) do v = math.max(v, r.profit or 0) end
+    for _, r in ipairs(list or {}) do if not r.suspiciousMarket then v = math.max(v, r.profit or 0) end end
     return v
 end
 
@@ -2197,7 +2221,7 @@ function UI:RefreshDetail()
             self.undermineText:SetText(L("UNDERMINE_NO_ITEM_DATA"))
         end
     elseif FS.Undermine and FS.Undermine.IsAvailable and FS.Undermine:IsAvailable() then
-        self.undermineText:SetText(L("UNDERMINE_NO_ITEM_DATA"))
+        self.undermineText:SetText(FS.Undermine:GetItemStatusText(r.itemID, r.link))
     else
         local unavailable = FS.Undermine and FS.Undermine.GetUnavailableText
             and FS.Undermine:GetUnavailableText()
@@ -2360,6 +2384,7 @@ function UI:DrawPriceHistory()
     HidePool(g.bars)
     HidePool(g.labels)
     HidePool(g.markers)
+    g.historySamples = nil
 
     local r = self.selected
     if not r then
@@ -2373,13 +2398,18 @@ function UI:DrawPriceHistory()
     local h = market and market.history[tostring(r.itemID)]
     local samples = h and h.samples or {}
     local values = {}
+    local plotted = {}
 
     for _, s in ipairs(samples) do
         if type(s) == "table" and tonumber(s.ref) then
             values[#values + 1] = s.ref
+            plotted[#plotted + 1] = s
         end
     end
 
+    local capacity = math.max(1, math.floor(math.max(20, g.plot:GetWidth()) / 9))
+    while #values > capacity do table.remove(values, 1); table.remove(plotted, 1) end
+    g.historySamples = plotted
     if #values == 0 then
         g.empty:SetText(L("HISTORY_STARTS"))
         g.empty:Show()
@@ -2408,6 +2438,7 @@ function UI:DrawPriceHistory()
 
     local totalW = bw * n + gap * math.max(0, n - 1)
     local startX = math.max(0, math.floor((pw - totalW) / 2))
+    g.historyGeometry = {startX = startX, step = bw + gap, width = bw}
 
     for i, v in ipairs(values) do
         local norm = (v - minV) / (maxV - minV)
@@ -2435,7 +2466,7 @@ function UI:DrawPriceHistory()
     marker(1, r.buy, C.green)
     marker(2, r.safeSell, C.blue)
 
-    g.meta:SetText(L("SCANS_FMT", #values))
+    g.meta:SetText(#values < 3 and "Collecting history" or L("SCANS_FMT", #values))
 end
 
 function UI:DrawMarketDepth()
@@ -3012,12 +3043,42 @@ function UI:ShowRowTooltip(row)
     GameTooltip:Show()
 end
 
+function UI:PositionAHLauncher()
+    local button = self.ahButton
+    if not button then return end
+    button:SetScale(UIParent:GetEffectiveScale() / AuctionHouseFrame:GetEffectiveScale())
+    button:ClearAllPoints()
+    local position = FS.DB and FS.DB.ahLauncher
+    if position and tonumber(position.x) and tonumber(position.y) then
+        button:SetPoint("CENTER", UIParent, "CENTER", position.x, position.y)
+    else
+        -- Outside the AH title bar, tabs and search controls. Users can move
+        -- this if another addon extends the Auction House into this space.
+        button:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "TOPLEFT", 8, 8)
+    end
+end
+
 function UI:OnAuctionHouseShow()
     if not AuctionHouseFrame then return end
 
     if not self.ahButton then
         local b = CreateFrame("Button", "DealScryerAuctionHouseButton", AuctionHouseFrame, "BackdropTemplate")
         b:SetSize(29, 29)
+        b:SetMovable(true)
+        b:SetClampedToScreen(true)
+        b:RegisterForDrag("LeftButton")
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b:SetScript("OnDragStart", function(self)
+            if IsShiftKeyDown() then self:StartMoving() end
+        end)
+        b:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            local x, y = self:GetCenter()
+            if x and y then
+                FS.DB.ahLauncher = { x = x - UIParent:GetWidth() / 2, y = y - UIParent:GetHeight() / 2 }
+                UI:PositionAHLauncher()
+            end
+        end)
         b:SetFrameLevel((AuctionHouseFrame:GetFrameLevel() or 1) + 30)
         Backdrop(b, C.panel2, C.border)
 
@@ -3031,7 +3092,13 @@ function UI:OnAuctionHouseShow()
         highlight:SetAllPoints()
         highlight:SetColorTexture(C.gold[1], C.gold[2], C.gold[3], 0.14)
 
-        b:SetScript("OnClick", function()
+        b:SetScript("OnClick", function(_, button)
+            if button == "RightButton" then
+                FS.DB.ahLauncher = nil
+                UI:PositionAHLauncher()
+                return
+            end
+            if IsShiftKeyDown() then return end
             if UI.frame and UI.frame:IsShown() then
                 UI.frame:Hide()
             else
@@ -3050,17 +3117,7 @@ function UI:OnAuctionHouseShow()
         self.ahButton = b
     end
 
-    -- Keep DealScryer's launcher independent from Blizzard/Auctionator bottom
-    -- tabs. Several Auction House addons replace or move those tabs, which made
-    -- the old anchor drift into the content area. The top-right title bar is a
-    -- stable, low-conflict location and stays visually aligned with the close button.
-    self.ahButton:ClearAllPoints()
-    local closeButton = AuctionHouseFrame.CloseButton or _G.AuctionHouseFrameCloseButton
-    if closeButton and closeButton.GetObjectType then
-        self.ahButton:SetPoint("RIGHT", closeButton, "LEFT", -7, 0)
-    else
-        self.ahButton:SetPoint("TOPRIGHT", AuctionHouseFrame, "TOPRIGHT", -43, -8)
-    end
+    self:PositionAHLauncher()
 
     self.ahButton:Show()
 end

@@ -1211,39 +1211,38 @@ end
 
 function S:FireAlerts()
     if not FS.DB.settings.alerts then return end
+    local market = FS:GetMarketState()
+    market.alertState = market.alertState or {}
+    local states = market.alertState
     local threshold = tonumber(FS.DB.settings.alertScore) or 80
-
     local shown = 0
     for _, r in ipairs(self.results) do
-        if (r.score or 0) >= threshold and shown < 5 then
-            local name = r.name or L("ITEM_FALLBACK_FMT", r.itemID)
-            FS:Print(L(
-                "ALERT_DEAL_FMT",
-                name,
-                FS:Money(r.buy, true),
-                FS:Money(r.safeSell, true),
-                FS:Money(r.profit, true),
-                r.score or 0
-            ))
+        local key = "deal:" .. r.itemID
+        local qualifies = not r.suspiciousMarket and (r.score or 0) >= threshold
+        local fingerprint = qualifies and tostring(r.buy) or nil
+        if fingerprint and states[key] ~= fingerprint and shown < 5 then
+            FS:Print(L("ALERT_DEAL_FMT", r.name or tostring(r.itemID),
+                FS:Money(r.buy, true), FS:Money(r.safeSell, true), FS:Money(r.profit, true), r.score or 0))
             shown = shown + 1
-        end
+            states[key] = fingerprint
+        elseif not qualifies then states[key] = nil end
     end
-
     for key, watch in pairs(FS.DB.watchlist or {}) do
-        local itemID = tonumber(key)
-        local r = itemID and self.lastAnalysis[itemID]
-        if r then
-            local pct = tonumber(watch.thresholdPct) or 70
-            if r.buy <= r.safeSell * (pct / 100) then
-                FS:Print(L(
-                    "WATCH_ALERT_FMT",
-                    r.name or L("ITEM_FALLBACK_FMT", itemID),
-                    (r.buy / r.safeSell) * 100,
-                    FS:Money(r.buy, true),
-                    FS:Money(r.safeSell, true)
-                ))
-            end
+        local r = self.lastAnalysis[tonumber(key)]
+        local alertKey = "watch:" .. key
+        local limit = tonumber(watch.targetGold)
+        if limit then limit = limit * FS.GOLD
+        elseif r then limit = (r.safeSell or 0) * ((tonumber(watch.thresholdPct) or 70) / 100) end
+        local qualifies = r and not r.suspiciousMarket and limit and r.buy <= limit
+        local fingerprint = qualifies and (tostring(r.buy) .. ":" .. tostring(limit)) or nil
+        if fingerprint and states[alertKey] ~= fingerprint then
+            FS:Print("Watch target reached: " .. (r.name or key) .. " at " .. FS:Money(r.buy, true))
         end
+        states[alertKey] = fingerprint
+    end
+    for key in pairs(states) do
+        local id = key:match("^deal:(%d+)$")
+        if id and not self.lastAnalysis[tonumber(id)] then states[key] = nil end
     end
 end
 
@@ -1346,7 +1345,10 @@ function S:GetVisibleList(tab, searchText)
         local equipmentOK = not opt.equipmentOnly or r.isEquipment == true
         local quantityOK = minQty <= 0 or (tonumber(r.totalQty) or 0) >= minQty
 
-        if textMatch
+        local riskOK = opt.riskMode ~= "hide" or not r.suspiciousMarket
+        if opt.riskMode == "only" then riskOK = r.suspiciousMarket == true end
+        local roiOK = (r.roi or 0) * 100 >= (tonumber(opt.minROIPct) or 0)
+        if textMatch and riskOK and roiOK
             and priceOK
             and levelOK
             and qualityOK
@@ -1362,6 +1364,9 @@ function S:GetVisibleList(tab, searchText)
     local desc = FS.DB.settings.sortDesc ~= false
 
     table.sort(filtered, function(a, b)
+        if (a.suspiciousMarket == true) ~= (b.suspiciousMarket == true) then
+            return not a.suspiciousMarket
+        end
         local av, bv
         if key == "name" then
             av = a.name or ""

@@ -4,7 +4,7 @@ local FS = _G.DealScryer or {}
 _G.DealScryer = FS
 
 FS.ADDON_NAME = ADDON_NAME
-FS.VERSION = "3.1.4"
+FS.VERSION = "3.2.0"
 FS.CREATOR = "Burn"
 FS.GOLD = 10000
 FS.SILVER = 100
@@ -16,7 +16,8 @@ local function L(key, ...)
 end
 
 FS.DEFAULTS = {
-    schema = 42,
+    schema = 43,
+    profiles = {},
     settings = {
         minDiscount = 20,
         minProfitGold = 100,
@@ -45,6 +46,8 @@ FS.DEFAULTS = {
         onlyUsable = false,
         equipmentOnly = false,
         minQuantity = 0,
+        minROIPct = 0,
+        riskMode = "all",
     },
     window = {
         point = "CENTER",
@@ -778,6 +781,13 @@ eventFrame:RegisterEvent("ITEM_DATA_LOAD_RESULT")
 eventFrame:SetScript("OnEvent", function(_, event, ...)
     if event == "ADDON_LOADED" then
         local addon = ...
+        if addon == "OribosExchange" and FS.Undermine then
+            FS.Undermine:ClearCache()
+            if FS.UI and FS.UI.frame and FS.UI.frame:IsShown() then
+                FS.UI:Refresh()
+                if FS.UI.tab == "settings" then FS.UI:LoadSettings() end
+            end
+        end
         if addon ~= ADDON_NAME then return end
 
         DealScryerDB = DealScryerDB or {}

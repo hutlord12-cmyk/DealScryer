@@ -1,7 +1,7 @@
 local FS = _G.DealScryer
 if not FS then return end
 
-local U = { cache = {} }
+local U = { cache = {}, errors = {} }
 FS.Undermine = U
 
 local function PositiveNumber(value)
@@ -111,11 +111,15 @@ end
 function U:GetUnavailableText()
     local connected, label = self:GetStatus()
     if connected then return nil end
-    return "Undermine Exchange • " .. tostring(label or "Oribos Exchange unavailable")
+    local state = self:GetAddonState()
+    if not state.exists then return "Oribos Exchange not installed" end
+    if state.loaded then return "Oribos Exchange loaded\nMarket API unavailable" end
+    return "Oribos Exchange unavailable\n" .. (FriendlyReason(state.reason) or "Installed but not loaded")
 end
 
 function U:ClearCache()
     wipe(self.cache)
+    wipe(self.errors)
 end
 
 function U:RecordHistorySnapshot(itemID, data)
@@ -203,15 +207,19 @@ function U:GetItemData(itemID, itemLink)
 
     local key = tostring(itemLink or ("item:" .. itemID))
     local cached = self.cache[key]
-    if cached ~= nil then
-        if cached then self:RecordHistorySnapshot(itemID, cached) end
-        return cached or nil
+    if cached and cached.expires > time() then
+        if cached.data then self:RecordHistorySnapshot(itemID, cached.data) end
+        return cached.data or nil
     end
+    self.errors[key] = nil
 
     local function query(value)
         local out = {}
         local ok = pcall(_G.OEMarketInfo, value, out)
-        if not ok then return nil end
+        if not ok then
+            self.errors[key] = true
+            return nil
+        end
 
         local realm = PositiveNumber(out.market)
         local region = PositiveNumber(out.region)
@@ -229,11 +237,21 @@ function U:GetItemData(itemID, itemLink)
         data = query("item:" .. itemID)
     end
 
-    self.cache[key] = data or false
+    if data then self.errors[key] = nil end
+    -- Retry transient misses; never retain a failed lookup for the whole session.
+    self.cache[key] = { data = data or false, expires = time() + (data and 300 or 10) }
     if data then
         self:RecordHistorySnapshot(itemID, data)
     end
     return data
+end
+
+function U:GetItemStatusText(itemID, itemLink)
+    local key = tostring(itemLink or ("item:" .. tostring(itemID)))
+    if self.errors[key] then
+        return "Oribos Exchange • lookup failed; retry on next refresh"
+    end
+    return "Oribos Exchange • no market value for this item; local scan data remains available"
 end
 
 function U:GetReference(data)
@@ -249,6 +267,10 @@ function U:ApplyToResult(result)
     local data = self:GetItemData(result.itemID, result.link)
     if not data then
         result.oeAvailable = false
+        result.oeRealm = nil
+        result.oeRegion = nil
+        result.oeReference = nil
+        result.oeReferenceKind = nil
         return nil
     end
 

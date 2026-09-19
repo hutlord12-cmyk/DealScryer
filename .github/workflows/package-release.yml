@@ -7,6 +7,7 @@ on:
     paths:
       - "DealScryer/**"
       - ".github/workflows/package-release.yml"
+      - "tests/**"
   workflow_dispatch:
 
 jobs:
@@ -27,6 +28,9 @@ jobs:
             echo "Checking $file"
             luac5.1 -p "$file"
           done
+
+      - name: Regression checks
+        run: lua5.1 tests/experience.lua
 
       - name: Read addon version
         run: |

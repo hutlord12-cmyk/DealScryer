@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.2.0 — clearer evidence and trading tools
+
+- Centered and bounded graph empty-state text, with wrapping and clipping; shortened Oribos failure messages.
+- Reduced the Oribos panel when its market API is unavailable and tightened detail-panel graph sizing.
+- Added compact result columns by default, with a persisted Advanced/Compact switch and aligned numeric columns.
+- Added Why this deal? with score context, discount, price gap, historical observations, sources and concrete risk reasons.
+- Added scan age to item details and explicit distinctions between source version, observations and confirmed sales.
+- Keep suspicious items below ordinary opportunities for every sort; exclude their profit from the top-profit metric.
+- Added all/hide/only suspicious-market filters and editable minimum ROI under Search Options.
+- Added Small Budget, Materials and High Margin presets plus named, saved custom search profiles.
+- Added hover date/price inspection for local history; limited plotted samples to panel width and labelled sparse history as collecting.
+- Added absolute per-item watch-price targets and price-change/threshold-entry alert deduplication scoped to the market.
+- Added a manual, market-scoped journal for completed trades: quantity, purchase total, gross proceeds, fees, signed realized profit, paging, undo/restore and export.
+- Preserved standalone operation, English interface, creator credit, the classic coin icon and existing AH search/open behavior.
+- Added headless regression coverage and a Lua 5.1 CI regression step. Live WoW rendering and third-party compatibility still require in-game verification.
+
+
+## 3.1.5 — movable launcher and Oribos recovery
+
+- Placed the AH shortcut above the top-left edge, outside title-bar controls and tabs.
+- Added Shift-drag with saved position, screen clamping, and right-click reset.
+- Retry failed/missing Oribos lookups after 10 seconds on the next lookup; refresh successful cached values after five minutes.
+- Clear Oribos cache when the provider loads, and remove obsolete market values when a lookup becomes unavailable.
+- Distinguish provider lookup errors from missing item data in item details.
+- Relabel the graph as local history to distinguish it from the provider’s four-day median.
+- Validated with mocked Lua checks; in-game compatibility still requires testing.
+
+
 ## 3.1.4 — Oribos compatibility status & AH launcher
 
 - Added detailed Oribos Exchange installation/load-state detection.

@@ -1,4 +1,29 @@
-# DealScryer 3.1.4
+# DealScryer 3.2.0
+
+## 3.2.0: new controls
+
+The results footer contains **Why this deal?**, **Profiles**, **Watch target**, **Journal**, and **Advanced/Compact**.
+
+- **Compact** displays item, buy, estimated net profit per unit, ROI and score. **Advanced** also displays target and discount. The choice is saved.
+- **Why this deal?** explains price gaps, target source, available history and risk. A score is not a probability of sale. Suspicious markets retain the red ! and appear below ordinary opportunities in every sort order.
+- **Search Options** includes minimum ROI and Risk: all / hide / only. "Hide" excludes suspicious markets; "only" isolates them. Other filters still apply. The top-profit card excludes suspicious estimates.
+- **Profiles** offers Small Budget (maximum 1,000 gold per unit), Materials (Trade Goods class), and High Margin (minimum 50% ROI). All three hide suspicious markets. Presets replace search filters but do not change the qualification settings on Settings. All preset values can be edited in Search Options. Save custom names; saving the same name overwrites that profile.
+- **Watch target** sets a maximum gold price per unit for the selected item. "Use % rule" returns an existing watch entry to its percentage threshold. Alerts run after scans, skip suspicious items and do not repeat unchanged qualifying prices. They rearm after a recorded threshold exit or price change. These are not continuous live-market alerts.
+- **Journal** records completed trades manually, separately for each market. Enter quantity and TOTAL gold for purchase, gross sale and all fees (including the AH cut and lost deposits). Net realized profit equals proceeds minus purchase cost minus fees; losses remain negative. Entries are saved, pageable and exportable. Undo/Restore applies to the current session; it does not trade or modify game inventory.
+- **Local history** shows date/reference-price tooltips while hovering. Fewer than three plotted observations are labelled Collecting history. At narrow widths only the most recent points that fit are displayed; stored observations remain intact.
+
+### Optional Oribos data
+
+Oribos status text is centered, wrapped and constrained to its panel. The panel is smaller when the provider is unavailable. Installation/load problems remain distinct from missing per-item values. See Settings or Why this deal? for details.
+
+An addon marked incompatible by WoW must be replaced with a version compatible with the installed Retail client; DealScryer cannot override that failure. Local scans continue without it. Provider prices are listing medians, not completed sales. The graph records observations locally, not a downloadable retrospective daily series. Scan age is shown separately; provider version and the time DealScryer observes a value do not prove source freshness.
+
+### Installation and validation
+
+Replace the existing `Interface/AddOns/DealScryer` folder with the packaged folder, then restart WoW or reload as appropriate. Keep your SavedVariables to retain settings, watchlist and history.
+
+Headless tests cover filters, suspicious sorting, alerts, profile controls, journal accounting/validation/undo and UI construction. These checks do not reproduce WoW's renderer. In-game checks should include the minimum window size, UI scaling, Oribos present/absent/incompatible, AH addons together and saved launcher positions.
+
 
 DealScryer is a standalone World of Warcraft Retail Auction House scanning and flip-analysis addon.
 
@@ -22,6 +47,12 @@ The creator credit is also shown directly in-game beside the DealScryer version 
 5. Click **Full Scan (15m)** when the Blizzard full-snapshot cooldown is ready.
 6. During the cooldown, use **Previous Scan** to reopen your last saved analysis.
 7. Sort/filter the results and right-click an item for live AH search, chat linking, Watchlist actions, or Undermine Exchange price-history lookup.
+
+## Auction House shortcut
+
+The coin shortcut sits just above the Auction House’s top-left edge. Shift-drag it to choose another location; its position persists between sessions. Right-click it to reset the position. The shortcut remains visible only with the Auction House.
+
+Oribos Exchange remains an optional installed addon. Missing lookups are retried after ten seconds when the item is refreshed. The embedded graph contains locally collected observations of the provider’s median, not downloaded historical daily prices. These changes do not repair an incompatible or disabled Oribos Exchange installation.
 
 ## What is DealScryer for?
 
