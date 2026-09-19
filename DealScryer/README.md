@@ -1,4 +1,4 @@
-# DealScryer 3.1.2
+# DealScryer 3.1.3
 
 DealScryer is a standalone World of Warcraft Retail Auction House scanning and flip-analysis addon.
 
@@ -223,3 +223,14 @@ The graph:
 - labels the newest point with its current market value.
 
 A new install cannot retroactively reconstruct the previous four days from Oribos Exchange. The graph fills naturally as DealScryer is used and Oribos Exchange data is refreshed.
+
+
+## Patch diagnostics
+
+DealScryer 3.1.3 expands `/fs diag` into a copyable troubleshooting report intended for use after WoW patches and hotfixes.
+
+It records the current WoW version/build/interface, DealScryer's declared interface, region/realm, Auction House replication API availability, throttle readiness, cached replicate-item count, and the lifecycle of the most recent scan.
+
+If Blizzard changes the replicate API, the report also probes the current `GetReplicateItemInfo()` return-value count whenever a cached snapshot exists. DealScryer keeps a small rolling event log so scan failures can be compared against recent Auction House throttle/replicate events.
+
+Use `/fs diag` and copy the complete report when reporting a post-patch problem.
