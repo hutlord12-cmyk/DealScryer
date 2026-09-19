@@ -1,4 +1,4 @@
-# DealScryer 3.1.3
+# DealScryer 3.1.4
 
 DealScryer is a standalone World of Warcraft Retail Auction House scanning and flip-analysis addon.
 
@@ -234,3 +234,14 @@ It records the current WoW version/build/interface, DealScryer's declared interf
 If Blizzard changes the replicate API, the report also probes the current `GetReplicateItemInfo()` return-value count whenever a cached snapshot exists. DealScryer keeps a small rolling event log so scan failures can be compared against recent Auction House throttle/replicate events.
 
 Use `/fs diag` and copy the complete report when reporting a post-patch problem.
+
+
+## Oribos load-state diagnostics
+
+DealScryer now checks WoW's addon state for Oribos Exchange instead of treating every unavailable `OEMarketInfo` function as "not installed".
+
+The UI can now distinguish an actually missing Oribos Exchange install from an installed addon that WoW considers disabled, out of date, incompatible, or otherwise unloadable. This is especially useful immediately after WoW patches.
+
+## Auction House launcher compatibility
+
+The small DealScryer Auction House launcher is anchored in the top-right title bar beside the close button. It no longer depends on Blizzard's Buy / Sell / Auctions tab positions, so Auctionator or other Auction House addons can replace those tabs without pushing the DealScryer launcher into the content area.
