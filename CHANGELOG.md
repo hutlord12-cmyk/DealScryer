@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.1.4 — Oribos compatibility status & AH launcher
+
+- DealScryer now distinguishes between Oribos Exchange being missing, disabled, out of date, incompatible, loaded without `OEMarketInfo`, or fully connected.
+- The selected-item panel, 4-day Oribos graph and Settings page now show the real Oribos load problem instead of incorrectly saying "not installed".
+- This makes WoW patch/version mismatches much easier to diagnose.
+- Moved the in-Auction-House DealScryer launcher away from Blizzard/Auctionator bottom tabs.
+- The launcher now sits in the Auction House top-right title bar next to the close button, reducing conflicts with Auctionator and other Auction House addons.
+- Bumped DealScryer to 3.1.4.
+
 ## 3.1.3 — patch diagnostics
 
 - Expanded `/fs diag` into a copyable patch-diagnostics report.
