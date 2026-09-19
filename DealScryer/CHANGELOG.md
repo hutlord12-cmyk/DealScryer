@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.4 — Oribos compatibility status & AH launcher
+
+- Added detailed Oribos Exchange installation/load-state detection.
+- UI now reports incompatible, disabled, out-of-date and other unloadable Oribos states correctly.
+- Moved DealScryer's AH launcher to the top-right title bar beside the close button.
+- Removed dependence on Auction House bottom-tab positions so Auctionator and similar addons no longer displace the launcher.
+
 ## 3.1.3 — patch diagnostics
 
 - Expanded `/fs diag` into a copyable patch-diagnostics report.
