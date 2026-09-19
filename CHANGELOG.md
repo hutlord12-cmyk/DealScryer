@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.1.3 — patch diagnostics
+
+- Expanded `/fs diag` into a copyable patch-diagnostics report.
+- Records WoW version, build, build date, client interface version, addon-declared interface, project ID, locale, region and realm.
+- Verifies availability of the Auction House replication APIs used by DealScryer.
+- Reports the current replicate cache count and Auction House throttle readiness.
+- When a cached snapshot exists, probes the current `GetReplicateItemInfo()` return-value count to help detect Blizzard API signature changes.
+- Persists the last scan lifecycle: request mode, stage, cached count before the request, auction/item/deal counts, top score, success/failure and last error.
+- Keeps a small rolling log of recent scan/throttle events for post-patch troubleshooting.
+- Fixed the addon metadata version so the TOC now correctly reports 3.1.3.
+
 ## 3.1.2 — Oribos Exchange 4-day trend
 
 - Added a compact Oribos Exchange 4-day trend graph to the selected-item panel.
