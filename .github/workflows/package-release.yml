@@ -1,0 +1,46 @@
+name: Build DealScryer package
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "DealScryer/**"
+      - ".github/workflows/package-release.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Lua and zip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1 zip
+
+      - name: Syntax-check Lua
+        run: |
+          for file in DealScryer/*.lua; do
+            echo "Checking $file"
+            luac5.1 -p "$file"
+          done
+
+      - name: Read addon version
+        run: |
+          VERSION="$(awk -F': ' '/^## Version:/ {print $2}' DealScryer/DealScryer.toc | tr -d '\r')"
+          test -n "$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build release ZIP
+        run: |
+          zip -r "DealScryer-$VERSION.zip" DealScryer -x "*.DS_Store"
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: DealScryer-package
+          path: DealScryer-*.zip
+          if-no-files-found: error
