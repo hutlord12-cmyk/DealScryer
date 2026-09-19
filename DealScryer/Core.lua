@@ -4,7 +4,7 @@ local FS = _G.DealScryer or {}
 _G.DealScryer = FS
 
 FS.ADDON_NAME = ADDON_NAME
-FS.VERSION = "3.1.2"
+FS.VERSION = "3.1.3"
 FS.CREATOR = "Burn"
 FS.GOLD = 10000
 FS.SILVER = 100
@@ -16,7 +16,7 @@ local function L(key, ...)
 end
 
 FS.DEFAULTS = {
-    schema = 41,
+    schema = 42,
     settings = {
         minDiscount = 20,
         minProfitGold = 100,
@@ -70,6 +70,11 @@ FS.DEFAULTS = {
     lastFullScanAt = 0,
     lastSuccessfulScanAt = 0,
     lastSnapshotAuctionCount = 0,
+    diagnostics = {
+        client = {},
+        lastScan = {},
+        events = {},
+    },
 }
 
 FS.state = FS.state or {
@@ -301,6 +306,246 @@ function FS:GetKnownCooldown()
     local last = tonumber(state and state.lastFullScanAt) or 0
     if last <= 0 then return 0 end
     return math.max(0, self.SNAPSHOT_COOLDOWN - (time() - last))
+end
+
+local function DiagnosticTimestamp(ts)
+    ts = tonumber(ts) or 0
+    if ts <= 0 then return "never" end
+    if date then
+        local ok, value = pcall(date, "%Y-%m-%d %H:%M:%S", ts)
+        if ok and value then return value end
+    end
+    return tostring(ts)
+end
+
+function FS:GetDiagnosticsState()
+    if not self.DB then return nil end
+    self.DB.diagnostics = type(self.DB.diagnostics) == "table" and self.DB.diagnostics or {}
+    self.DB.diagnostics.client = type(self.DB.diagnostics.client) == "table" and self.DB.diagnostics.client or {}
+    self.DB.diagnostics.lastScan = type(self.DB.diagnostics.lastScan) == "table" and self.DB.diagnostics.lastScan or {}
+    self.DB.diagnostics.events = type(self.DB.diagnostics.events) == "table" and self.DB.diagnostics.events or {}
+    return self.DB.diagnostics
+end
+
+function FS:RecordDiagnosticEvent(eventName, detail)
+    local diagnostics = self:GetDiagnosticsState()
+    if not diagnostics then return end
+
+    local entry = {
+        t = time(),
+        event = tostring(eventName or "event"),
+    }
+    if detail ~= nil then entry.detail = tostring(detail) end
+
+    diagnostics.events[#diagnostics.events + 1] = entry
+    while #diagnostics.events > 20 do
+        table.remove(diagnostics.events, 1)
+    end
+end
+
+function FS:StartScanDiagnostics(mode, cachedBefore)
+    local diagnostics = self:GetDiagnosticsState()
+    if not diagnostics then return end
+
+    diagnostics.lastScan = {
+        startedAt = time(),
+        completedAt = 0,
+        success = false,
+        mode = tostring(mode or "unknown"),
+        stage = "requesting",
+        cachedBefore = tonumber(cachedBefore) or 0,
+        auctions = 0,
+        items = 0,
+        deals = 0,
+        candidates = 0,
+        topScore = 0,
+        error = "",
+    }
+    self:RecordDiagnosticEvent("scan-start", diagnostics.lastScan.mode)
+end
+
+function FS:UpdateScanDiagnostics(fields)
+    local diagnostics = self:GetDiagnosticsState()
+    if not diagnostics or type(fields) ~= "table" then return end
+
+    diagnostics.lastScan = type(diagnostics.lastScan) == "table" and diagnostics.lastScan or {}
+    for key, value in pairs(fields) do
+        local valueType = type(value)
+        if valueType == "string" or valueType == "number" or valueType == "boolean" then
+            diagnostics.lastScan[key] = value
+        end
+    end
+end
+
+function FS:FinishScanDiagnostics(success, fields)
+    self:UpdateScanDiagnostics(fields or {})
+    local diagnostics = self:GetDiagnosticsState()
+    if not diagnostics then return end
+
+    diagnostics.lastScan.success = success == true
+    diagnostics.lastScan.completedAt = time()
+
+    if success then
+        diagnostics.lastScan.stage = "complete"
+        diagnostics.lastScan.error = ""
+        self:RecordDiagnosticEvent("scan-complete", diagnostics.lastScan.mode or "unknown")
+    else
+        diagnostics.lastScan.stage = "failed"
+        self:RecordDiagnosticEvent("scan-failed", diagnostics.lastScan.error or "")
+    end
+end
+
+function FS:CaptureClientDiagnostics()
+    local diagnostics = self:GetDiagnosticsState()
+    if not diagnostics then return nil end
+
+    local wowVersion, wowBuild, wowBuildDate, interfaceVersion
+    if GetBuildInfo then
+        local ok, v, b, d, i = pcall(GetBuildInfo)
+        if ok then
+            wowVersion, wowBuild, wowBuildDate, interfaceVersion = v, b, d, i
+        end
+    end
+
+    local declaredInterface
+    if C_AddOns and C_AddOns.GetAddOnMetadata then
+        local ok, value = pcall(C_AddOns.GetAddOnMetadata, ADDON_NAME, "Interface")
+        if ok then declaredInterface = value end
+    end
+
+    local api = {
+        ReplicateItems = C_AuctionHouse and type(C_AuctionHouse.ReplicateItems) == "function" or false,
+        GetNumReplicateItems = C_AuctionHouse and type(C_AuctionHouse.GetNumReplicateItems) == "function" or false,
+        GetReplicateItemInfo = C_AuctionHouse and type(C_AuctionHouse.GetReplicateItemInfo) == "function" or false,
+        IsThrottledMessageSystemReady = C_AuctionHouse and type(C_AuctionHouse.IsThrottledMessageSystemReady) == "function" or false,
+    }
+
+    local cached = 0
+    if api.GetNumReplicateItems then
+        local ok, value = pcall(C_AuctionHouse.GetNumReplicateItems)
+        if ok then cached = tonumber(value) or 0 end
+    end
+
+    local throttleReady
+    if api.IsThrottledMessageSystemReady then
+        local ok, value = pcall(C_AuctionHouse.IsThrottledMessageSystemReady)
+        if ok then throttleReady = value == true end
+    end
+
+    local replicateProbeOK, replicateReturnCount
+    if cached > 0 and api.GetReplicateItemInfo then
+        local function ProbeReplicateTuple()
+            return select("#", C_AuctionHouse.GetReplicateItemInfo(0))
+        end
+        local ok, value = pcall(ProbeReplicateTuple)
+        replicateProbeOK = ok == true
+        if ok then replicateReturnCount = tonumber(value) end
+    end
+
+    diagnostics.client = {
+        capturedAt = time(),
+        addonVersion = tostring(self.VERSION or ""),
+        wowVersion = tostring(wowVersion or ""),
+        wowBuild = tostring(wowBuild or ""),
+        wowBuildDate = tostring(wowBuildDate or ""),
+        interfaceVersion = tonumber(interfaceVersion) or 0,
+        declaredInterface = tostring(declaredInterface or ""),
+        projectID = tonumber(WOW_PROJECT_ID) or 0,
+        locale = GetLocale and tostring(GetLocale() or "") or "",
+        regionID = self:GetActualRegionID(),
+        realm = GetRealmName and tostring(GetRealmName() or "") or "",
+        cachedReplicateItems = cached,
+        throttleReady = throttleReady,
+        replicateProbeOK = replicateProbeOK,
+        replicateReturnCount = replicateReturnCount,
+        apiReplicateItems = api.ReplicateItems,
+        apiGetNumReplicateItems = api.GetNumReplicateItems,
+        apiGetReplicateItemInfo = api.GetReplicateItemInfo,
+        apiThrottleReady = api.IsThrottledMessageSystemReady,
+    }
+
+    return diagnostics.client
+end
+
+function FS:GetDiagnosticLines()
+    local client = self:CaptureClientDiagnostics() or {}
+    local diagnostics = self:GetDiagnosticsState() or {}
+    local lastScan = diagnostics.lastScan or {}
+    local lines = {}
+
+    lines[#lines + 1] = "DealScryer " .. tostring(self.VERSION) .. " by " .. tostring(self.CREATOR or "Burn")
+    lines[#lines + 1] = "Captured: " .. DiagnosticTimestamp(client.capturedAt)
+    lines[#lines + 1] = "WoW: " .. tostring(client.wowVersion or "") .. " • Build " .. tostring(client.wowBuild or "") .. " • " .. tostring(client.wowBuildDate or "")
+    lines[#lines + 1] = "Interface: client " .. tostring(client.interfaceVersion or 0) .. " • addon " .. tostring(client.declaredInterface or "")
+    lines[#lines + 1] = "Project ID: " .. tostring(client.projectID or 0) .. " • Locale: " .. tostring(client.locale or "")
+    lines[#lines + 1] = "Market: " .. self:GetMarketLabel() .. " • Region ID " .. tostring(self:GetActualRegionID())
+    lines[#lines + 1] = "AH open: " .. tostring(self.state.ahOpen)
+    lines[#lines + 1] = "Scan running: " .. tostring(self.Scanner and self.Scanner.scanRunning)
+    lines[#lines + 1] = "Scan phase: " .. tostring(self.Scanner and self.Scanner.scanPhase)
+    lines[#lines + 1] = "Status: " .. tostring(self.Scanner and self.Scanner.status)
+    lines[#lines + 1] = "Known cooldown: " .. tostring(self:GetKnownCooldown()) .. " sec"
+    lines[#lines + 1] = "Replicate cache: " .. tostring(client.cachedReplicateItems or 0)
+    lines[#lines + 1] = "Throttle ready: " .. tostring(client.throttleReady)
+    lines[#lines + 1] = "AH APIs: ReplicateItems=" .. tostring(client.apiReplicateItems)
+        .. " • GetNum=" .. tostring(client.apiGetNumReplicateItems)
+        .. " • GetInfo=" .. tostring(client.apiGetReplicateItemInfo)
+        .. " • Throttle=" .. tostring(client.apiThrottleReady)
+
+    if client.replicateProbeOK ~= nil then
+        lines[#lines + 1] = "Replicate tuple probe: " .. tostring(client.replicateProbeOK)
+            .. " • returns=" .. tostring(client.replicateReturnCount or "?")
+    else
+        lines[#lines + 1] = "Replicate tuple probe: not run (no cached snapshot)"
+    end
+
+    if self.Undermine and self.Undermine.GetStatus then
+        local ok, available, label = pcall(function()
+            local a, l = self.Undermine:GetStatus()
+            return a, l
+        end)
+        if ok then
+            lines[#lines + 1] = "Oribos Exchange: " .. tostring(available) .. " • " .. tostring(label or "")
+        end
+    end
+
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "LAST SCAN"
+    lines[#lines + 1] = "Started: " .. DiagnosticTimestamp(lastScan.startedAt)
+    lines[#lines + 1] = "Completed: " .. DiagnosticTimestamp(lastScan.completedAt)
+    lines[#lines + 1] = "Success: " .. tostring(lastScan.success)
+        .. " • Mode: " .. tostring(lastScan.mode or "unknown")
+        .. " • Stage: " .. tostring(lastScan.stage or "none")
+    lines[#lines + 1] = "Cached before request: " .. tostring(lastScan.cachedBefore or 0)
+        .. " • Auctions: " .. tostring(lastScan.auctions or 0)
+    lines[#lines + 1] = "Items: " .. tostring(lastScan.items or 0)
+        .. " • Deals: " .. tostring(lastScan.deals or 0)
+        .. " • Candidates: " .. tostring(lastScan.candidates or 0)
+        .. " • Top score: " .. tostring(lastScan.topScore or 0)
+    if lastScan.error and lastScan.error ~= "" then
+        lines[#lines + 1] = "Last error: " .. tostring(lastScan.error)
+    end
+
+    local state = self:GetMarketState()
+    local historyItems = 0
+    for _ in pairs((state and state.history) or {}) do historyItems = historyItems + 1 end
+    lines[#lines + 1] = "History items: " .. tostring(historyItems)
+
+    local events = diagnostics.events or {}
+    if #events > 0 then
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = "RECENT EVENTS"
+        local first = math.max(1, #events - 7)
+        for i = first, #events do
+            local entry = events[i]
+            local text = DiagnosticTimestamp(entry.t) .. " • " .. tostring(entry.event or "event")
+            if entry.detail and entry.detail ~= "" then
+                text = text .. " • " .. tostring(entry.detail)
+            end
+            lines[#lines + 1] = text
+        end
+    end
+
+    return lines
 end
 
 function FS:PruneHistory()
@@ -552,6 +797,8 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 
     elseif event == "PLAYER_LOGIN" then
         FS:PruneHistory()
+        FS:CaptureClientDiagnostics()
+        FS:RecordDiagnosticEvent("player-login", "WoW client diagnostics captured")
         if FS.Tooltip then FS.Tooltip:Initialize() end
         C_Timer.After(1, function()
             if FS.UI and FS.UI.RegisterMoverSupport then
@@ -626,29 +873,13 @@ SlashCmdList.DEALSCRYER = function(msg)
         if FS.Scanner then FS.Scanner:AnalyzeCachedSnapshot() end
 
     elseif cmd == "diag" then
-        local lines = {
-            "DealScryer " .. FS.VERSION,
-            "Market: " .. FS:GetMarketLabel(),
-            "Region ID: " .. tostring(FS:GetActualRegionID()),
-            L("DIAG_AH_OPEN") .. ": " .. tostring(FS.state.ahOpen),
-            L("DIAG_SCAN_RUNNING") .. ": " .. tostring(FS.Scanner and FS.Scanner.scanRunning),
-            L("DIAG_SCAN_PHASE") .. ": " .. tostring(FS.Scanner and FS.Scanner.scanPhase),
-            L("DIAG_STATUS") .. ": " .. tostring(FS.Scanner and FS.Scanner.status),
-            L("DIAG_COOLDOWN") .. ": " .. tostring(FS:GetKnownCooldown()) .. " " .. L("SECONDS_SHORT"),
-            L("DIAG_REPLICATE_CACHE") .. ": " .. tostring(
-                C_AuctionHouse and C_AuctionHouse.GetNumReplicateItems
-                    and C_AuctionHouse.GetNumReplicateItems()
-                    or 0
-            ),
-            L("DIAG_HISTORY_ITEMS") .. ": " .. tostring((function()
-                local n = 0
-                local state = FS:GetMarketState()
-                for _ in pairs((state and state.history) or {}) do n = n + 1 end
-                return n
-            end)()),
-        }
+        local lines = FS:GetDiagnosticLines()
         if FS.UI and FS.UI.ShowCopyableText then
             FS.UI:ShowCopyableText(L("DIAG_TITLE"), table.concat(lines, "\n"))
+        else
+            for _, line in ipairs(lines) do
+                FS:Print(line)
+            end
         end
 
     elseif cmd == "clearhistory" then
