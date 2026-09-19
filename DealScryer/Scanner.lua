@@ -366,6 +366,9 @@ end
 
 function S:OnAuctionHouseClosed()
     if self.scanRunning and self.scanPhase == "waiting" then
+        if FS.FinishScanDiagnostics then
+            FS:FinishScanDiagnostics(false, { error = L("AH_CLOSED") })
+        end
         self.scanRunning = false
         self.scanPhase = nil
         self:SetStatus(L("AH_CLOSED"), 0)
@@ -393,9 +396,16 @@ function S:GetCachedReplicateCount()
 end
 
 function S:FailSnapshot(message)
+    local failure = message or L("SNAPSHOT_FAILED")
+    if FS.FinishScanDiagnostics then
+        FS:FinishScanDiagnostics(false, {
+            error = tostring(failure),
+            auctions = tonumber(self.currentAuctionCount) or 0,
+        })
+    end
     self.scanRunning = false
     self.scanPhase = nil
-    self:SetStatus(message or L("SNAPSHOT_FAILED"), 0)
+    self:SetStatus(failure, 0)
 end
 
 function S:RequestSnapshotNow()
@@ -415,6 +425,15 @@ function S:RequestSnapshotNow()
     self.requestStartedAt = GetTime()
     self.requestStartCachedCount = self:GetCachedReplicateCount()
     self.requestFallbackUsed = false
+    if FS.UpdateScanDiagnostics then
+        FS:UpdateScanDiagnostics({
+            stage = "requesting",
+            cachedBefore = self.requestStartCachedCount,
+        })
+    end
+    if FS.RecordDiagnosticEvent then
+        FS:RecordDiagnosticEvent("replicate-request", "cached=" .. tostring(self.requestStartCachedCount))
+    end
     self:SetStatus(L("REQUESTING_BLIZZARD_SNAPSHOT"), 0.02)
 
     local token = self.scanToken
@@ -661,6 +680,9 @@ function S:StartFullScan()
     self.requestStartedAt = GetTime()
     self.requestStartCachedCount = self:GetCachedReplicateCount()
     self.requestFallbackUsed = false
+    if FS.StartScanDiagnostics then
+        FS:StartScanDiagnostics("fresh", self.requestStartCachedCount)
+    end
 
     local token = self.scanToken
     self:SetStatus(L("REQUESTING_FRESH"), 0.015)
@@ -719,6 +741,10 @@ function S:StartFullScan()
 end
 
 function S:OnThrottleEvent(event)
+    if FS.RecordDiagnosticEvent then
+        FS:RecordDiagnosticEvent("ah-throttle", event)
+    end
+
     if event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
         self.throttleReadyAt = GetTime()
 
@@ -768,6 +794,12 @@ function S:AnalyzeCachedSnapshot()
     self.currentSnapshotAt = time()
     self.currentAuctionCount = n
     self.requestFallbackUsed = true
+    if FS.StartScanDiagnostics then
+        FS:StartScanDiagnostics("cached", n)
+    end
+    if FS.UpdateScanDiagnostics then
+        FS:UpdateScanDiagnostics({ stage = "collect", auctions = n })
+    end
     self:SetStatus(L("ANALYZING_CACHED_FMT", n), 0.03)
     self:CollectSnapshot(n, false)
 end
@@ -782,6 +814,12 @@ function S:OnReplicateUpdate()
     self.currentSnapshotAt = time()
     self.currentAuctionCount = n
     self.requestFallbackUsed = false
+    if FS.UpdateScanDiagnostics then
+        FS:UpdateScanDiagnostics({ stage = "snapshot-received", auctions = n })
+    end
+    if FS.RecordDiagnosticEvent then
+        FS:RecordDiagnosticEvent("replicate-update", tostring(n) .. " auctions")
+    end
 
     local market = FS:GetMarketState()
     if market then
@@ -795,6 +833,17 @@ function S:OnReplicateUpdate()
 end
 
 function S:CollectSnapshot(total, freshSnapshot)
+    if FS.UpdateScanDiagnostics then
+        FS:UpdateScanDiagnostics({
+            stage = "collect",
+            auctions = tonumber(total) or 0,
+            freshSnapshot = freshSnapshot == true,
+        })
+    end
+    if FS.RecordDiagnosticEvent then
+        FS:RecordDiagnosticEvent("collect-start", tostring(total or 0) .. " auctions")
+    end
+
     local token = self.scanToken
     local grouped = {}
     local index = 0
@@ -1098,6 +1147,18 @@ function S:AnalyzeGroups(grouped, freshSnapshot)
             while #market.scanSessions > 40 do
                 table.remove(market.scanSessions, 1)
             end
+        end
+
+        local topScore = self.results[1] and self.results[1].score or 0
+        if FS.FinishScanDiagnostics then
+            FS:FinishScanDiagnostics(true, {
+                mode = self.requestFallbackUsed and "cached" or "fresh",
+                auctions = self.currentAuctionCount or 0,
+                items = total,
+                deals = #self.results,
+                candidates = #self.candidates,
+                topScore = topScore,
+            })
         end
 
         self.scanRunning = false
